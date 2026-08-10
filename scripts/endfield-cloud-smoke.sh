@@ -167,6 +167,10 @@ if [[ "${ADVANCE_ONBOARDING:-false}" == "true" ]]; then
   done
 fi
 
+if [[ "${BOOTSTRAP_LOGIN:-false}" == "true" ]]; then
+  bash scripts/publish-login-qr-and-wait.sh "$OUT_DIR/onboarding"
+fi
+
 # A successful am start only proves that Android accepted the Intent. Give the
 # application enough time to initialize native libraries and its network stack.
 sleep 45

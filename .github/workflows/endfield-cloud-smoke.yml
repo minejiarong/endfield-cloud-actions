@@ -13,6 +13,11 @@ name: Cloud Endfield Android smoke test
         required: false
         type: string
         default: "30"
+      bootstrap_login:
+        description: Publish a live QR code and save AVD state after login
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,9 +30,12 @@ jobs:
   launch:
     name: Install and launch Cloud Endfield
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       ADVANCE_ONBOARDING: ${{ inputs.advance_onboarding }}
+      BOOTSTRAP_LOGIN: ${{ inputs.bootstrap_login }}
+      STATE_REPO_SSH_KEY: ${{ secrets.STATE_REPO_SSH_KEY }}
+      STATE_ENCRYPTION_PASSWORD: ${{ secrets.STATE_ENCRYPTION_PASSWORD }}
 
     steps:
       - name: Check out repository
@@ -76,6 +84,11 @@ jobs:
             -no-metrics
           disable-animations: true
           script: bash scripts/endfield-cloud-smoke.sh
+
+      - name: Encrypt and save logged-in Android state
+        if: ${{ inputs.bootstrap_login }}
+        shell: bash
+        run: bash scripts/save-avd-state.sh
 
       - name: Upload diagnostics
         if: always()
