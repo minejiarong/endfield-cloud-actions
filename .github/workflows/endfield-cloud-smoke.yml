@@ -59,11 +59,6 @@ jobs:
             git ls-remote git@github.com:minejiarong/endfield-cloud-state.git HEAD >/dev/null
           rm -f "$HOME/.ssh/endfield_state"
 
-      - name: Restore encrypted Android state
-        if: ${{ inputs.restore_state }}
-        shell: bash
-        run: bash scripts/restore-avd-state.sh
-
       - name: Record runner capabilities
         shell: bash
         run: |
@@ -83,6 +78,11 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           test -r /dev/kvm && test -w /dev/kvm
+
+      - name: Restore encrypted Android state
+        if: ${{ inputs.restore_state }}
+        shell: bash
+        run: bash scripts/restore-avd-state.sh
 
       - name: Start Android and run smoke test
         uses: ReactiveCircus/android-emulator-runner@v2
