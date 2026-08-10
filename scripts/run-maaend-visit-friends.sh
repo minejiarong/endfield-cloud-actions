@@ -106,7 +106,14 @@ echo "== Run MaaEnd VisitFriends =="
 set +e
 (
   cd "$MAA_DIR"
-  printf '6\n7\n' | timeout 1200 env LD_LIBRARY_PATH="$MAA_DIR" ./MaaPiCli
+  # Refresh the controller through MaaToolkit before running. MaaFramework
+  # matches the saved device by both its detected name and adb path in order
+  # to populate screencap/input capabilities; a made-up name leaves those
+  # capabilities empty and can crash the controller.
+  #
+  # Main menu 1 -> Auto detect 1 -> first/only device 1 -> Run 6 ->
+  # acknowledge completion -> Exit 7.
+  printf '1\n1\n1\n6\n\n7\n' | timeout 1200 env TERM=dumb LD_LIBRARY_PATH="$MAA_DIR" ./MaaPiCli
 ) 2>&1 | tee "$OUT_DIR/console.log"
 maa_status=${PIPESTATUS[0]}
 set -e
@@ -120,6 +127,18 @@ echo "$maa_status" > "$OUT_DIR/exit-code.txt"
 if (( maa_status != 0 )); then
   echo "MaaEnd VisitFriends failed with exit code $maa_status" >&2
   exit "$maa_status"
+fi
+
+if grep -Eiq \
+  'signal [0-9]+ received|Failed to create control unit|Failed to connect controller|Parse config failed|### Failed to run tasks ###' \
+  "$OUT_DIR/console.log"; then
+  echo "MaaEnd reported a controller crash or task failure despite exit code 0." >&2
+  exit 1
+fi
+
+if ! grep -Fq '### All tasks have been completed ###' "$OUT_DIR/console.log"; then
+  echo "MaaEnd exited without confirming task completion." >&2
+  exit 1
 fi
 
 echo "MaaEnd VisitFriends finished."
