@@ -97,6 +97,7 @@ import xml.etree.ElementTree as ET
 
 path = sys.argv[1]
 targets = (
+    "Got it",
     "同意并继续",
     "我知道了",
     "立即体验",
