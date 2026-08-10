@@ -99,6 +99,7 @@ path = sys.argv[1]
 targets = (
     "Got it",
     "Close app",
+    "Allow one-time access",
     "同意并继续",
     "我知道了",
     "立即体验",
