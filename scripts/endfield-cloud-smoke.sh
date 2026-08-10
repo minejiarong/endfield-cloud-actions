@@ -129,6 +129,27 @@ for target in targets:
         print(f"Tapped onboarding button: {label}")
         raise SystemExit(0)
 
+# The HG login SDK exposes its QR-mode switch as an unlabeled clickable
+# ImageView. Select it only when the phone-number login form is present.
+phone_login_visible = any(
+    (node.get("text") or "").strip() == "请输入手机号"
+    for node in root.iter("node")
+)
+if phone_login_visible:
+    for node in root.iter("node"):
+        if node.get("class") != "android.widget.ImageView" or node.get("clickable") != "true":
+            continue
+        match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.get("bounds", ""))
+        if not match:
+            continue
+        left, top, right, bottom = map(int, match.groups())
+        subprocess.run(
+            ["adb", "shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2)],
+            check=True,
+        )
+        print("Switched login form to QR mode")
+        raise SystemExit(0)
+
 raise SystemExit(1)
 PY
 }
