@@ -204,11 +204,13 @@ PY
 if [[ "${ADVANCE_ONBOARDING:-false}" == "true" ]]; then
   echo "== Advance known onboarding screens =="
   sleep 5
-  for stage in 00 01 02 03 04 05; do
+  # Cloud network checks can surface their confirmation dialog tens of
+  # seconds after the title activity starts. Keep polling through quiet frames
+  # instead of stopping at the first frame without a known button.
+  for stage in 00 01 02 03 04 05 06 07 08 09 10 11; do
     capture_onboarding_stage "$stage"
     if ! tap_known_onboarding_button "$OUT_DIR/onboarding/${stage}.xml"; then
       echo "No known onboarding button found at stage $stage"
-      break
     fi
     sleep 5
   done
