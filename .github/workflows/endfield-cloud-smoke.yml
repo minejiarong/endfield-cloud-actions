@@ -12,7 +12,7 @@ name: Cloud Endfield Android smoke test
         description: Android API level to test
         required: false
         type: string
-        default: "30"
+        default: "35"
       bootstrap_login:
         description: Publish a live QR code and save AVD state after login
         required: false
