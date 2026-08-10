@@ -1,0 +1,74 @@
+name: Cloud Endfield Android smoke test
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: endfield-cloud-smoke
+  cancel-in-progress: true
+
+jobs:
+  launch:
+    name: Install and launch Cloud Endfield
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Record runner capabilities
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          {
+            uname -a
+            lscpu
+            df -h
+            ls -la /dev/kvm || true
+          } | tee artifacts/runner.txt
+
+      - name: Allow access to KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+
+      - name: Start Android and run smoke test
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          cores: 2
+          ram-size: 3072M
+          heap-size: 512M
+          disk-size: 6G
+          emulator-boot-timeout: 600
+          emulator-options: >-
+            -no-window
+            -gpu swiftshader
+            -no-snapshot
+            -noaudio
+            -no-boot-anim
+            -camera-back none
+            -camera-front none
+            -no-metrics
+          disable-animations: true
+          script: bash scripts/endfield-cloud-smoke.sh
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: endfield-cloud-smoke-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7
