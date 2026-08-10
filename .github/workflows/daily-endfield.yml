@@ -55,6 +55,20 @@ jobs:
 
             echo "Cloud Endfield attempt ${attempt} failed."
             echo "Result: failed" >> "$GITHUB_STEP_SUMMARY"
+
+            kvm_failed="$(gh run view "$run_id" \
+              --repo "$TARGET_REPO" \
+              --json jobs \
+              --jq '[.jobs[].steps[] | select(.name == "Allow access to KVM" and .conclusion == "failure")] | length')"
+
+            if [[ "$kvm_failed" != "1" ]]; then
+              echo "Failure was not caused by the KVM access step; no retry will be started."
+              echo "Retry decision: stopped (non-KVM failure)" >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+
+            echo "KVM access failed; a fresh workflow run will be started."
+            echo "Retry decision: retry (KVM failure)" >> "$GITHUB_STEP_SUMMARY"
           done
 
           echo "Cloud Endfield failed after the initial attempt and 3 retries." >&2
