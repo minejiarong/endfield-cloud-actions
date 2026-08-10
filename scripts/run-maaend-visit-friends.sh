@@ -121,8 +121,22 @@ EOF
 
 watch_runtime_prompts() {
   local ui_xml="$MAA_DIR/runtime-window.xml"
+  local maafw_log="$MAA_DIR/debug/maafw.log"
+  local first_visit_tutorial_handled=false
 
   while true; do
+    # Unity does not expose the first-visit tutorial through uiautomator. Maa's
+    # own log gives us a reliable transition: after leaving the visitor
+    # terminal, the friend's ship is shown and the one-time overlay appears.
+    if [[ "$first_visit_tutorial_handled" == "false" ]] \
+      && [[ -f "$maafw_log" ]] \
+      && grep -Fq '"name":"VisitFriendsMenuTerminalExitToWorldShip","success":true' "$maafw_log"; then
+      first_visit_tutorial_handled=true
+      sleep 6
+      echo "Runtime prompt watcher: dismissing first-visit ship tutorial"
+      adb -s "$adb_serial" shell input tap 640 610 >/dev/null
+    fi
+
     if adb -s "$adb_serial" shell uiautomator dump --compressed /sdcard/maa-runtime-window.xml >/dev/null 2>&1 \
       && adb -s "$adb_serial" pull /sdcard/maa-runtime-window.xml "$ui_xml" >/dev/null 2>&1; then
       if grep -Eq '点击任意处继续|点击任意位置继续' "$ui_xml"; then
