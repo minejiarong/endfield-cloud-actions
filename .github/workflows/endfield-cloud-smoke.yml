@@ -2,6 +2,12 @@ name: Cloud Endfield Android smoke test
 
 "on":
   workflow_dispatch:
+    inputs:
+      advance_onboarding:
+        description: Automatically advance known onboarding screens
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,6 +21,8 @@ jobs:
     name: Install and launch Cloud Endfield
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      ADVANCE_ONBOARDING: ${{ inputs.advance_onboarding }}
 
     steps:
       - name: Check out repository
