@@ -158,6 +158,11 @@ resumed="$(adb shell dumpsys activity activities \
   | grep -E 'mResumedActivity|topResumedActivity' \
   | grep "$EXPECTED_PACKAGE" || true)"
 
+if [[ -z "$resumed" ]]; then
+  echo "Cloud Endfield has a process but no resumed foreground activity" >&2
+  exit 31
+fi
+
 echo "pid=$pid" | tee "$OUT_DIR/success.txt"
-echo "resumed_activity=${resumed:-not reported}" | tee -a "$OUT_DIR/success.txt"
+echo "resumed_activity=$resumed" | tee -a "$OUT_DIR/success.txt"
 echo "Cloud Endfield stayed alive after launch. Smoke test passed."
