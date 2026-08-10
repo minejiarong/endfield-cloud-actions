@@ -41,6 +41,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Verify private state repository access
+        if: ${{ inputs.bootstrap_login }}
+        shell: bash
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/endfield_state"
+          printf '%s\n' "$STATE_REPO_SSH_KEY" > "$HOME/.ssh/endfield_state"
+          ssh-keyscan -H github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          GIT_SSH_COMMAND="ssh -i $HOME/.ssh/endfield_state -o IdentitiesOnly=yes" \
+            git ls-remote git@github.com:minejiarong/endfield-cloud-state.git HEAD >/dev/null
+          rm -f "$HOME/.ssh/endfield_state"
+
       - name: Record runner capabilities
         shell: bash
         run: |
