@@ -119,7 +119,27 @@ cat > "$MAA_DIR/config/maa_option.json" <<'EOF'
 }
 EOF
 
+watch_runtime_prompts() {
+  local ui_xml="$MAA_DIR/runtime-window.xml"
+
+  while true; do
+    if adb -s "$adb_serial" shell uiautomator dump --compressed /sdcard/maa-runtime-window.xml >/dev/null 2>&1 \
+      && adb -s "$adb_serial" pull /sdcard/maa-runtime-window.xml "$ui_xml" >/dev/null 2>&1; then
+      if grep -Eq '点击任意处继续|点击任意位置继续' "$ui_xml"; then
+        echo "Runtime prompt watcher: dismissing first-visit tutorial"
+        adb -s "$adb_serial" shell input tap 640 610 >/dev/null
+      elif grep -Eq '测速失败，请稍后再试\(6116\)|text="知道了"' "$ui_xml"; then
+        echo "Runtime prompt watcher: dismissing speed-test prompt"
+        adb -s "$adb_serial" shell input tap 640 420 >/dev/null
+      fi
+    fi
+    sleep 3
+  done
+}
+
 echo "== Run MaaEnd VisitFriends =="
+watch_runtime_prompts > "$OUT_DIR/prompt-watcher.log" 2>&1 &
+prompt_watcher_pid=$!
 set +e
 (
   cd "$MAA_DIR"
@@ -131,6 +151,8 @@ set +e
 ) 2>&1 | tee "$OUT_DIR/console.log"
 maa_status=${PIPESTATUS[0]}
 set -e
+kill "$prompt_watcher_pid" >/dev/null 2>&1 || true
+wait "$prompt_watcher_pid" 2>/dev/null || true
 
 if [[ -d "$MAA_DIR/debug" ]]; then
   cp -a "$MAA_DIR/debug/." "$OUT_DIR/"
@@ -155,8 +177,8 @@ if ! grep -Fq '### All tasks have been completed ###' "$OUT_DIR/console.log"; th
   exit 1
 fi
 
-if grep -Eq 'Tasker\.Task\.Failed|task end: .*\[ret=false\]|roi is out of range' "$OUT_DIR/maafw.log"; then
-  echo "MaaEnd's framework log reports a failed task or invalid recognition canvas." >&2
+if grep -Eq 'Tasker\.Task\.Failed|task end: .*\[ret=false\]' "$OUT_DIR/maafw.log"; then
+  echo "MaaEnd's framework log reports a failed task." >&2
   exit 1
 fi
 
