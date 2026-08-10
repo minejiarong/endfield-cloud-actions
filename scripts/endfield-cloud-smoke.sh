@@ -243,3 +243,7 @@ fi
 echo "pid=$pid" | tee "$OUT_DIR/success.txt"
 echo "resumed_activity=$resumed" | tee -a "$OUT_DIR/success.txt"
 echo "Cloud Endfield stayed alive after launch. Smoke test passed."
+
+if [[ "${RUN_MAA_VISIT_FRIENDS:-false}" == "true" ]]; then
+  bash scripts/run-maaend-visit-friends.sh
+fi

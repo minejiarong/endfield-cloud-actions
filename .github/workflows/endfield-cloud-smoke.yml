@@ -23,6 +23,11 @@ name: Cloud Endfield Android smoke test
         required: false
         type: boolean
         default: false
+      run_maa_visit_friends:
+        description: Run MaaEnd VisitFriends after the launch check
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,6 +45,7 @@ jobs:
       ADVANCE_ONBOARDING: ${{ inputs.advance_onboarding }}
       BOOTSTRAP_LOGIN: ${{ inputs.bootstrap_login }}
       RESTORE_STATE: ${{ inputs.restore_state }}
+      RUN_MAA_VISIT_FRIENDS: ${{ inputs.run_maa_visit_friends }}
       STATE_REPO_SSH_KEY: ${{ secrets.STATE_REPO_SSH_KEY }}
       STATE_ENCRYPTION_PASSWORD: ${{ secrets.STATE_ENCRYPTION_PASSWORD }}
 

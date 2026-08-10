@@ -1,0 +1,36 @@
+{
+  "interface_version": 2,
+  "name": "MaaEnd CI",
+  "version": "2.23.0",
+  "controller": [
+    {
+      "name": "CloudADB",
+      "type": "Adb",
+      "attach_resource_path": [
+        "./resource_adb",
+        "./resource_cloud_adb"
+      ]
+    }
+  ],
+  "resource": [
+    {
+      "name": "CN",
+      "path": [
+        "./resource"
+      ]
+    }
+  ],
+  "agent": [
+    {
+      "child_exec": "agent/go-service"
+    },
+    {
+      "child_exec": "agent/cpp-algo",
+      "child_args": []
+    }
+  ],
+  "task": [],
+  "import": [
+    "tasks/VisitFriends.json"
+  ]
+}
