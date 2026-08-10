@@ -45,6 +45,16 @@ adb shell getprop ro.build.version.sdk
 adb shell getprop ro.product.cpu.abilist
 adb shell getprop ro.hardware
 
+# MaaEnd's recognition data is authored for a 1280x720 landscape canvas.
+# Pixel phone profiles have a portrait-native display and the game rotates it;
+# MaaFramework's API 35 orientation probe cannot read that rotation reliably.
+# Make landscape the display's natural orientation so Maa receives the same
+# coordinate space without having to rotate or rescale the screenshot.
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 0
+adb shell wm size 1280x720
+adb shell wm density 240
+
 echo "== Download official latest Cloud Endfield APK =="
 curl --fail --location --show-error --silent \
   --retry 5 --retry-all-errors --connect-timeout 30 --max-time 600 \

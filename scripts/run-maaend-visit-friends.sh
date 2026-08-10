@@ -141,4 +141,14 @@ if ! grep -Fq '### All tasks have been completed ###' "$OUT_DIR/console.log"; th
   exit 1
 fi
 
+if grep -Eq 'Tasker\.Task\.Failed|task end: .*\[ret=false\]|roi is out of range' "$OUT_DIR/maafw.log"; then
+  echo "MaaEnd's framework log reports a failed task or invalid recognition canvas." >&2
+  exit 1
+fi
+
+if ! grep -Eq 'task end: .*VisitFriends.*\[ret=true\]' "$OUT_DIR/maafw.log"; then
+  echo "MaaEnd did not record a successful VisitFriends task." >&2
+  exit 1
+fi
+
 echo "MaaEnd VisitFriends finished."

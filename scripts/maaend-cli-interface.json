@@ -6,6 +6,7 @@
     {
       "name": "CloudADB",
       "type": "Adb",
+      "display_raw": true,
       "attach_resource_path": [
         "./resource_adb",
         "./resource_cloud_adb"
