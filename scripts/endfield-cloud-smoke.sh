@@ -93,6 +93,7 @@ tap_known_onboarding_button() {
 import re
 import subprocess
 import sys
+import time
 import xml.etree.ElementTree as ET
 
 path = sys.argv[1]
@@ -113,6 +114,39 @@ try:
     root = ET.parse(path).getroot()
 except (FileNotFoundError, ET.ParseError):
     raise SystemExit(1)
+
+def tap_node(node, description):
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.get("bounds", ""))
+    if not match:
+        return False
+    left, top, right, bottom = map(int, match.groups())
+    subprocess.run(
+        ["adb", "shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2)],
+        check=True,
+    )
+    print(f"Tapped {description}")
+    return True
+
+# The post-login game policy dialog requires checking its agreement circle
+# before the Agree button becomes active. Match stable resource IDs and only
+# perform this pair when the expected dialog title is present.
+game_policy_visible = any(
+    (node.get("text") or "").strip() == "游戏条款与政策"
+    for node in root.iter("node")
+)
+if game_policy_visible:
+    checkbox = next((
+        node for node in root.iter("node")
+        if (node.get("resource-id") or "").endswith(":id/iv_checkbox")
+    ), None)
+    agree = next((
+        node for node in root.iter("node")
+        if (node.get("resource-id") or "").endswith(":id/btn_agree")
+    ), None)
+    if checkbox is not None and agree is not None and tap_node(checkbox, "game policy checkbox"):
+        time.sleep(1)
+        if tap_node(agree, "game policy Agree button"):
+            raise SystemExit(0)
 
 for target in targets:
     for node in root.iter("node"):
