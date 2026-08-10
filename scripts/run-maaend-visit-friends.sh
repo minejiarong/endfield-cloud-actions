@@ -15,32 +15,6 @@ curl --fail --location --show-error --silent \
   --output "$MAA_ARCHIVE" "$MAA_URL"
 tar -xzf "$MAA_ARCHIVE" -C "$MAA_DIR"
 
-# On the Android cloud layout the second manufacturing-cabin icon scored
-# 0.889 in a real run, narrowly below MaaEnd's desktop-oriented 0.900 cutoff,
-# while the same frame's OCR confirmed that assistance was still available.
-# Relax only that room-icon match; the separate assistance-button template
-# must still match before Maa is allowed to click anything.
-python3 - "$MAA_DIR/resource/pipeline/VisitFriends/Exectue.json" <<'PY'
-import sys
-
-path = sys.argv[1]
-with open(path, encoding="utf-8") as stream:
-    pipeline = stream.read()
-
-start = pipeline.index('"VisitFriendsMenuAssistMFGCabin2":')
-end = pipeline.index('"VisitFriendsMenuAssistMFGCabin2Success":', start)
-room = pipeline[start:end]
-if '"template": "VisitFriends/TerminalMFGCabin.png"' not in room:
-    raise SystemExit("Unexpected MaaEnd manufacturing-cabin pipeline layout")
-patched_room = room.replace('"threshold": 0.9', '"threshold": 0.85', 1)
-if patched_room == room:
-    raise SystemExit("MaaEnd manufacturing-cabin threshold was not patched")
-pipeline = pipeline[:start] + patched_room + pipeline[end:]
-
-with open(path, "w", encoding="utf-8") as stream:
-    stream.write(pipeline)
-PY
-
 # MaaPiCli resolves interface.json relative to the MaaFramework libraries.
 # The MaaEnd release keeps those in maafw/ for its GUI, so flatten only the
 # runtime files into the temporary package root for headless CLI execution.
