@@ -23,8 +23,25 @@ cp "$GITHUB_WORKSPACE/scripts/maaend-cli-interface.json" "$MAA_DIR/interface.jso
 chmod +x "$MAA_DIR/MaaPiCli" "$MAA_DIR/agent/go-service" "$MAA_DIR/agent/cpp-algo"
 
 adb_serial="${ANDROID_SERIAL:-emulator-5554}"
-adb_path="$(command -v adb)"
+real_adb_path="$(command -v adb)"
 adb -s "$adb_serial" get-state | grep -qx device
+
+# MaaFramework 2.23 identifies Google AVDs from ro.product.model and enables
+# AVDExtras. That fast path reads the Pixel profile's underlying 1080x2340
+# portrait framebuffer, bypassing our logical 1280x720 display override. Give
+# Maa a private adb wrapper that only masks that probe; every real operation is
+# forwarded unchanged, which makes the ordinary lossless screencap methods use
+# the correct landscape display.
+adb_path="$MAA_DIR/adb"
+cat > "$adb_path" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"shell getprop ro.product.model"* ]]; then
+  echo "Endfield CI Android"
+  exit 0
+fi
+exec "$real_adb_path" "\$@"
+EOF
+chmod +x "$adb_path"
 
 mkdir -p "$MAA_DIR/config"
 cat > "$MAA_DIR/config/maa_pi_config.json" <<EOF
@@ -32,7 +49,7 @@ cat > "$MAA_DIR/config/maa_pi_config.json" <<EOF
   "adb": {
     "adb_path": "$adb_path",
     "address": "$adb_serial",
-    "name": "GitHub Actions Android emulator"
+    "name": "${adb_serial}-${adb_path}"
   },
   "controller": {
     "name": "CloudADB"
@@ -106,14 +123,11 @@ echo "== Run MaaEnd VisitFriends =="
 set +e
 (
   cd "$MAA_DIR"
-  # Refresh the controller through MaaToolkit before running. MaaFramework
-  # matches the saved device by both its detected name and adb path in order
-  # to populate screencap/input capabilities; a made-up name leaves those
-  # capabilities empty and can crash the controller.
-  #
-  # Main menu 1 -> Auto detect 1 -> first/only device 1 -> Run 6 ->
-  # acknowledge completion -> Exit 7.
-  printf '1\n1\n1\n6\n\n7\n' | timeout 1200 env TERM=dumb LD_LIBRARY_PATH="$MAA_DIR" ./MaaPiCli
+  timeout 1200 env \
+    TERM=dumb \
+    PATH="$MAA_DIR:$PATH" \
+    LD_LIBRARY_PATH="$MAA_DIR" \
+    ./MaaPiCli -d
 ) 2>&1 | tee "$OUT_DIR/console.log"
 maa_status=${PIPESTATUS[0]}
 set -e
