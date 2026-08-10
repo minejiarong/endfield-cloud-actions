@@ -18,6 +18,11 @@ name: Cloud Endfield Android smoke test
         required: false
         type: boolean
         default: false
+      restore_state:
+        description: Restore the encrypted logged-in Android state
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -34,6 +39,7 @@ jobs:
     env:
       ADVANCE_ONBOARDING: ${{ inputs.advance_onboarding }}
       BOOTSTRAP_LOGIN: ${{ inputs.bootstrap_login }}
+      RESTORE_STATE: ${{ inputs.restore_state }}
       STATE_REPO_SSH_KEY: ${{ secrets.STATE_REPO_SSH_KEY }}
       STATE_ENCRYPTION_PASSWORD: ${{ secrets.STATE_ENCRYPTION_PASSWORD }}
 
@@ -42,7 +48,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Verify private state repository access
-        if: ${{ inputs.bootstrap_login }}
+        if: ${{ inputs.bootstrap_login || inputs.restore_state }}
         shell: bash
         run: |
           install -d -m 700 "$HOME/.ssh"
@@ -52,6 +58,11 @@ jobs:
           GIT_SSH_COMMAND="ssh -i $HOME/.ssh/endfield_state -o IdentitiesOnly=yes" \
             git ls-remote git@github.com:minejiarong/endfield-cloud-state.git HEAD >/dev/null
           rm -f "$HOME/.ssh/endfield_state"
+
+      - name: Restore encrypted Android state
+        if: ${{ inputs.restore_state }}
+        shell: bash
+        run: bash scripts/restore-avd-state.sh
 
       - name: Record runner capabilities
         shell: bash
@@ -80,6 +91,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_5
+          force-avd-creation: false
           cores: 2
           ram-size: 3072M
           heap-size: 512M

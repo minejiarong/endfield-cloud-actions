@@ -190,6 +190,21 @@ if [[ -z "$resumed" ]]; then
   exit 31
 fi
 
+if [[ "${RESTORE_STATE:-false}" == "true" ]]; then
+  echo "== Verify restored login state =="
+  adb shell uiautomator dump --compressed /sdcard/restored-window.xml >/dev/null 2>&1 || true
+  adb pull /sdcard/restored-window.xml "$OUT_DIR/restored-window.xml" >/dev/null 2>&1 || true
+  adb exec-out screencap -p > "$OUT_DIR/restored-login.png" 2>/dev/null || true
+
+  if grep -Eq '请输入手机号|支持App：|支持App:' "$OUT_DIR/restored-window.xml"; then
+    echo "Restored application returned to the login screen" >&2
+    exit 32
+  fi
+
+  echo "Restored application is running without showing the login screen." \
+    | tee "$OUT_DIR/restored-login.txt"
+fi
+
 echo "pid=$pid" | tee "$OUT_DIR/success.txt"
 echo "resumed_activity=$resumed" | tee -a "$OUT_DIR/success.txt"
 echo "Cloud Endfield stayed alive after launch. Smoke test passed."
