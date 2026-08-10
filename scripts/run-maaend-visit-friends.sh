@@ -15,6 +15,32 @@ curl --fail --location --show-error --silent \
   --output "$MAA_ARCHIVE" "$MAA_URL"
 tar -xzf "$MAA_ARCHIVE" -C "$MAA_DIR"
 
+# On the Android cloud layout the second manufacturing-cabin icon scored
+# 0.889 in a real run, narrowly below MaaEnd's desktop-oriented 0.900 cutoff,
+# while the same frame's OCR confirmed that assistance was still available.
+# Relax only that room-icon match; the separate assistance-button template
+# must still match before Maa is allowed to click anything.
+python3 - "$MAA_DIR/resource/pipeline/VisitFriends/Exectue.json" <<'PY'
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as stream:
+    pipeline = stream.read()
+
+start = pipeline.index('"VisitFriendsMenuAssistMFGCabin2":')
+end = pipeline.index('"VisitFriendsMenuAssistMFGCabin2Success":', start)
+room = pipeline[start:end]
+if '"template": "VisitFriends/TerminalMFGCabin.png"' not in room:
+    raise SystemExit("Unexpected MaaEnd manufacturing-cabin pipeline layout")
+patched_room = room.replace('"threshold": 0.9', '"threshold": 0.85', 1)
+if patched_room == room:
+    raise SystemExit("MaaEnd manufacturing-cabin threshold was not patched")
+pipeline = pipeline[:start] + patched_room + pipeline[end:]
+
+with open(path, "w", encoding="utf-8") as stream:
+    stream.write(pipeline)
+PY
+
 # MaaPiCli resolves interface.json relative to the MaaFramework libraries.
 # The MaaEnd release keeps those in maafw/ for its GUI, so flatten only the
 # runtime files into the temporary package root for headless CLI execution.
@@ -123,33 +149,46 @@ watch_runtime_prompts() {
   local ui_xml="$MAA_DIR/runtime-window.xml"
   local maafw_log="$MAA_DIR/debug/maafw.log"
   local tutorial_screen="$OUT_DIR/tutorial-check.png"
+  local tutorial_text="$OUT_DIR/tutorial-check.txt"
   local first_visit_tutorial_handled=false
 
-  is_first_visit_tutorial_visible() {
+  read_runtime_screen_text() {
     adb -s "$adb_serial" exec-out screencap -p > "$tutorial_screen" 2>/dev/null || return 1
+    tesseract "$tutorial_screen" stdout -l chi_sim+eng --psm 11 \
+      2>/dev/null > "$tutorial_text" || return 1
+  }
 
-    python3 - "$tutorial_screen" <<'PY'
+  is_tutorial_text() {
+    python3 - "$tutorial_text" <<'PY'
+import re
 import sys
-from PIL import Image, ImageStat
 
-image = Image.open(sys.argv[1]).convert("RGB")
-if image.size != (1280, 720):
-    raise SystemExit(1)
+with open(sys.argv[1], encoding="utf-8", errors="replace") as stream:
+    text = stream.read()
 
-# The one-time Unity tutorial dims the friend page and adds many bright yellow
-# guide marks. Requiring both features avoids treating ordinary yellow UI text
-# or a naturally darker scene as the tutorial.
-yellow_pixels = sum(
-    1
-    for red, green, blue in image.crop((0, 50, 1280, 280)).getdata()
-    if red > 190 and green > 145 and blue < 110
-    and red - blue > 100 and green - blue > 60
+pattern = re.compile(
+    r"(?:\u70b9\s*\u51fb\s*\u4efb\s*\u610f\s*\u5904\s*\u7ee7\s*\u7eed"
+    r"|\u9ede\s*\u64ca\s*\u4efb\s*\u610f\s*\u8655\s*\u7e7c\s*\u7e8c"
+    r"|click\s*anywhere\s*to\s*continue)",
+    re.IGNORECASE,
 )
-background_luma = ImageStat.Stat(
-    image.crop((250, 220, 1000, 500)).convert("L")
-).mean[0]
+raise SystemExit(0 if pattern.search(text) else 1)
+PY
+  }
 
-raise SystemExit(0 if yellow_pixels >= 500 and background_luma < 205 else 1)
+  is_end_visit_text() {
+    python3 - "$tutorial_text" <<'PY'
+import re
+import sys
+
+with open(sys.argv[1], encoding="utf-8", errors="replace") as stream:
+    text = stream.read()
+
+pattern = re.compile(
+    r"(?:\u7ed3\u675f\u62dc\u8bbf|\u7d50\u675f\u62dc\u8a2a|End\s*Visit)",
+    re.IGNORECASE,
+)
+raise SystemExit(0 if pattern.search(text) else 1)
 PY
   }
 
@@ -161,21 +200,36 @@ PY
       && [[ -f "$maafw_log" ]] \
       && grep -Fq '"name":"VisitFriendsMenuTerminalExitToWorldShip","success":true' "$maafw_log"; then
       first_visit_tutorial_handled=true
-      tutorial_visible=false
+      runtime_prompt_handled=false
       for _ in {1..8}; do
         sleep 2
-        if is_first_visit_tutorial_visible; then
-          tutorial_visible=true
+        if ! read_runtime_screen_text; then
+          continue
+        fi
+
+        if is_tutorial_text; then
+          echo "Runtime prompt watcher: tutorial text detected; dismissing it"
+          cp "$tutorial_screen" "$OUT_DIR/tutorial-detected.png"
+          cp "$tutorial_text" "$OUT_DIR/tutorial-detected.txt"
+          adb -s "$adb_serial" shell input tap 640 610 >/dev/null
+          runtime_prompt_handled=true
+          # Dismissing the tutorial reveals the End Visit button. Keep
+          # checking so the same watcher can finish the exit sequence.
+          continue
+        fi
+
+        if is_end_visit_text; then
+          echo "Runtime prompt watcher: End Visit text detected; ending the visit"
+          cp "$tutorial_screen" "$OUT_DIR/end-visit-detected.png"
+          cp "$tutorial_text" "$OUT_DIR/end-visit-detected.txt"
+          adb -s "$adb_serial" shell input tap 1110 646 >/dev/null
+          runtime_prompt_handled=true
           break
         fi
       done
 
-      if [[ "$tutorial_visible" == "true" ]]; then
-        echo "Runtime prompt watcher: tutorial detected; dismissing it"
-        cp "$tutorial_screen" "$OUT_DIR/tutorial-detected.png"
-        adb -s "$adb_serial" shell input tap 640 610 >/dev/null
-      else
-        echo "Runtime prompt watcher: tutorial not present; leaving the screen untouched"
+      if [[ "$runtime_prompt_handled" == "false" ]]; then
+        echo "Runtime prompt watcher: no tutorial or End Visit text detected; leaving the screen untouched"
       fi
     fi
 
