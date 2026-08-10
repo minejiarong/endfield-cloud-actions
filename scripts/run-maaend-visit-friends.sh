@@ -122,19 +122,61 @@ EOF
 watch_runtime_prompts() {
   local ui_xml="$MAA_DIR/runtime-window.xml"
   local maafw_log="$MAA_DIR/debug/maafw.log"
+  local tutorial_screen="$OUT_DIR/tutorial-check.png"
   local first_visit_tutorial_handled=false
+
+  is_first_visit_tutorial_visible() {
+    adb -s "$adb_serial" exec-out screencap -p > "$tutorial_screen" 2>/dev/null || return 1
+
+    python3 - "$tutorial_screen" <<'PY'
+import sys
+from PIL import Image, ImageStat
+
+image = Image.open(sys.argv[1]).convert("RGB")
+if image.size != (1280, 720):
+    raise SystemExit(1)
+
+# The one-time Unity tutorial dims the friend page and adds many bright yellow
+# guide marks. Requiring both features avoids treating ordinary yellow UI text
+# or a naturally darker scene as the tutorial.
+yellow_pixels = sum(
+    1
+    for red, green, blue in image.crop((0, 50, 1280, 280)).getdata()
+    if red > 190 and green > 145 and blue < 110
+    and red - blue > 100 and green - blue > 60
+)
+background_luma = ImageStat.Stat(
+    image.crop((250, 220, 1000, 500)).convert("L")
+).mean[0]
+
+raise SystemExit(0 if yellow_pixels >= 500 and background_luma < 205 else 1)
+PY
+  }
 
   while true; do
     # Unity does not expose the first-visit tutorial through uiautomator. Maa's
-    # own log gives us a reliable transition: after leaving the visitor
-    # terminal, the friend's ship is shown and the one-time overlay appears.
+    # own log narrows down when it may appear; a screenshot check decides
+    # whether it is actually present before any tap is sent.
     if [[ "$first_visit_tutorial_handled" == "false" ]] \
       && [[ -f "$maafw_log" ]] \
       && grep -Fq '"name":"VisitFriendsMenuTerminalExitToWorldShip","success":true' "$maafw_log"; then
       first_visit_tutorial_handled=true
-      sleep 6
-      echo "Runtime prompt watcher: dismissing first-visit ship tutorial"
-      adb -s "$adb_serial" shell input tap 640 610 >/dev/null
+      tutorial_visible=false
+      for _ in {1..8}; do
+        sleep 2
+        if is_first_visit_tutorial_visible; then
+          tutorial_visible=true
+          break
+        fi
+      done
+
+      if [[ "$tutorial_visible" == "true" ]]; then
+        echo "Runtime prompt watcher: tutorial detected; dismissing it"
+        cp "$tutorial_screen" "$OUT_DIR/tutorial-detected.png"
+        adb -s "$adb_serial" shell input tap 640 610 >/dev/null
+      else
+        echo "Runtime prompt watcher: tutorial not present; leaving the screen untouched"
+      fi
     fi
 
     if adb -s "$adb_serial" shell uiautomator dump --compressed /sdcard/maa-runtime-window.xml >/dev/null 2>&1 \

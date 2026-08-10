@@ -90,6 +90,13 @@ jobs:
         shell: bash
         run: bash scripts/restore-avd-state.sh
 
+      - name: Install tutorial image detector
+        if: ${{ inputs.run_maa_visit_friends }}
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-pil
+
       - name: Start Android and run smoke test
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
