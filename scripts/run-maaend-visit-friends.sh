@@ -166,6 +166,23 @@ raise SystemExit(0 if pattern.search(text) else 1)
 PY
   }
 
+  is_end_visit_confirmation_text() {
+    python3 - "$tutorial_text" <<'PY'
+import re
+import sys
+
+with open(sys.argv[1], encoding="utf-8", errors="replace") as stream:
+    text = stream.read()
+
+pattern = re.compile(
+    r"(?:\u662f\s*\u5426\s*\u8981\s*\u7ed3\s*\u675f\s*\u672c\s*\u6b21\s*\u62dc\s*\u8bbf"
+    r"|end\s*this\s*visit)",
+    re.IGNORECASE,
+)
+raise SystemExit(0 if pattern.search(text) else 1)
+PY
+  }
+
   while true; do
     # Unity does not expose the first-visit tutorial through uiautomator. Maa's
     # own log narrows down when it may appear; a screenshot check decides
@@ -179,6 +196,15 @@ PY
         sleep 2
         if ! read_runtime_screen_text; then
           continue
+        fi
+
+        if is_end_visit_confirmation_text; then
+          echo "Runtime prompt watcher: End Visit confirmation detected; confirming it"
+          cp "$tutorial_screen" "$OUT_DIR/end-visit-confirmation.png"
+          cp "$tutorial_text" "$OUT_DIR/end-visit-confirmation.txt"
+          adb -s "$adb_serial" shell input tap 780 490 >/dev/null
+          runtime_prompt_handled=true
+          break
         fi
 
         if is_tutorial_text; then
@@ -198,7 +224,9 @@ PY
           cp "$tutorial_text" "$OUT_DIR/end-visit-detected.txt"
           adb -s "$adb_serial" shell input tap 1110 646 >/dev/null
           runtime_prompt_handled=true
-          break
+          # A confirmation dialog follows. Continue until its full question
+          # is recognized and confirmed.
+          continue
         fi
       done
 
