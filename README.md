@@ -41,3 +41,9 @@ https://launcher.hypergryph.com/game/latest/EjOB8xSdBmtLnzCX/1/1
 本阶段不进行账号登录、扫码、游玩或 MAA 自动化。客户端 APK 只包含 ARM
 原生库，本验证依赖 Android 11 Google APIs x86_64 系统镜像提供的 ARM
 兼容能力；能否成功正是本次实验需要回答的问题。
+
+## 首次验证结果
+
+2026-08-10 的首次公开运行已成功：模拟器完成启动，APK 安装成功，入口
+Activity 冷启动耗时约 2.8 秒，等待 45 秒后应用进程仍存活，前台停留在
+官方“游戏协议条款提示”页面。
